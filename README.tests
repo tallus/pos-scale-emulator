@@ -1,0 +1,14 @@
+Valid tests:
+samsung     Tests to ensure you can read and write to the POS when it is using
+            the SamsungESP scale internally. Does not need an actual scale
+            hooked up.
+
+            Launch the POS then run the command with 
+            --pos=/your/serial/port --test=samsung
+            Then added a weighed item in the POS. Repeat three times
+            It will perform three tests.
+            Returning a weight of 5 kg,returning a fractional weight (5.652 kg) 
+            and a random weight. Observe results by reading the command output
+            and checking for errors in the POS.
+
+
