@@ -11,4 +11,15 @@ samsung     Tests to ensure you can read and write to the POS when it is using
             and a random weight. Observe results by reading the command output
             and checking for errors in the POS.
 
+dialog     Tests to ensure you can read and write to the POS when it is using
+            the Dalog1 scale internally. Does not need an actual scale
+            hooked up.
 
+            Launch the POS then run the command with
+            --pos=/your/serial/port --test=dialog
+            Then added a weighed item in the POS. Repeat three times
+            It will perform three tests.
+            Returning a weight of 500g , followed by two random weights.
+            Observe results by reading the command output and checking for 
+            errors in the POS.
+        
