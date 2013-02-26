@@ -221,6 +221,23 @@ def pos_test_samsung(s_port):
     opos_scale.pos_test(str(rand_weight))
     print('end test3')
 
+def pos_test_dialog(s_port):
+    print('starting tests')
+    print('opening serial port')
+    opos_scale=Dialog(s_port)
+    print('start test1')
+    opos_scale.pos_test('500')
+    print('end test1')
+    # generate random float between 0 & 10 and round to 3 decimal places
+    rand_weight=round(random.uniform(0,10),3)
+    print('start test2')
+    print('end test2')
+    opos_scale.pos_test(str(rand_weight))
+    print('start test3')
+    opos_scale.pos_test(str(rand_weight))
+    print('end test3')
+
+
 
 # MAIN
 
@@ -235,5 +252,6 @@ if __name__ == "__main__":
     if args.test:
         if args.test == 'samsung':
             pos_test_samsung(args.pos)
-
+        elif args.test == 'dialog':
+            pos_test_dialog(args.pos)
 
