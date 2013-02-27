@@ -242,6 +242,9 @@ def pos_test_dialog(s_port):
     opos_scale.pos_test(str(rand_weight))
     print('end test3')
 
-
-
-
+def magellan_scale_test(s_port):
+    print('starting tests')
+    test_scale=MagellanSASI(s_port)
+    test_scale.run_echo_test()
+    test_scale.run_confidence_test()
+    print('end tests')
