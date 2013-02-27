@@ -157,6 +157,11 @@ class Samsung(Scale):
     def __init__(self, device = ''):
         Scale.__init__(self, device, 4800, '8', 'odd' ,'1', None,  'None', '\x0d', None, '$', 'k')
 
+class Dummy(Scale):
+    """extends Scale, A dummy external scale for testing purposes. This will return a random weight between 0 & 25 kg (as kg), in 1g increments.. Weight Request $. Weighs in kilos."""
+    def __init__(self, device = ''):
+        Scale.__init__(self, device, 4800, '8', 'odd' ,'1', None,  'None', '\x0d', None, '$', 'k')
+
 
 class MagellanSASI(Scale):
     """extends Scale. External scale using SASI-RS232 scale interface. Weighs in kilos or pounds. Weight Request W """
