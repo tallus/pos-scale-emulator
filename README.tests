@@ -1,5 +1,5 @@
-The program will execute a sequence of three tests, in order to check that everything is functionining correctly.
-The test run depends of the value set by the pos (or scale) option. Only one test at a time. The program exits with status 0 after the test has been run regardless of outcome (since some tests will require manual checking).
+The program has the capcity  execute a sequence of tests, in order to check that everything is functionining correctly. These generally require manual interaction with the POS. The purpose of the this file is to outline tests and the steps necessary to perform them.
+The test run depends of the value set in the test . Only one test at a time. The program exits with status 0 after the test has been run regardless of outcome (since some tests will require manual checking).
 
 Valid tests:
 samsung     Tests to ensure you can read and write to the POS when it is using
@@ -10,7 +10,6 @@ samsung     Tests to ensure you can read and write to the POS when it is using
             --test --pos=samsung --pos-serial=/your/serial/port 
             Then added a weighed item in the POS. Repeat three times
             It will perform three tests.
-            Returning a weight of 5 kg,returning a fractional weight (5.652 kg) 
             and a random weight. Observe results by reading the command output
             and checking for errors in the POS.
 
@@ -25,4 +24,8 @@ dialog     Tests to ensure you can read and write to the POS when it is using
             Returning a weight of 500g , followed by two random weights.
             Observe results by reading the command output and checking for 
             errors in the POS.
+
+magellan    Runs a series of built in tests on the Magellan scale. No User 
+            Intervention is required.
+
         
