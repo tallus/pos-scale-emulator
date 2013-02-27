@@ -244,19 +244,4 @@ def pos_test_dialog(s_port):
 
 
 
-# MAIN
-
-if __name__ == "__main__": 
-    # pass
-    #initialisation
-    parser=argparse.ArgumentParser()
-    parser.add_argument("--test", help="Run specified test. See README.tests")
-    parser.add_argument("--pos", help="specify the serial port the pos is connected to. e.g. /dev/pts/11")
-    parser.add_argument("--scale", help="specify the serial port the scale is connected to. e.g. /dev/ttyS3")
-    args=parser.parse_args()
-    if args.test:
-        if args.test == 'samsung':
-            pos_test_samsung(args.pos)
-        elif args.test == 'dialog':
-            pos_test_dialog(args.pos)
 
