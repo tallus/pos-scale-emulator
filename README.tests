@@ -1,10 +1,13 @@
+The program will execute a sequence of three tests, in order to check that everything is functionining correctly.
+The test run depends of the value set by the pos (or scale) option. Only one test at a time. The program exits with status 0 after the test has been run regardless of outcome (since some tests will require manual checking).
+
 Valid tests:
 samsung     Tests to ensure you can read and write to the POS when it is using
             the SamsungESP scale internally. Does not need an actual scale
             hooked up.
 
             Launch the POS then run the command with 
-            --pos=/your/serial/port --test=samsung
+            --test --pos=samsung --pos-serial=/your/serial/port 
             Then added a weighed item in the POS. Repeat three times
             It will perform three tests.
             Returning a weight of 5 kg,returning a fractional weight (5.652 kg) 
@@ -16,7 +19,7 @@ dialog     Tests to ensure you can read and write to the POS when it is using
             hooked up.
 
             Launch the POS then run the command with
-            --pos=/your/serial/port --test=dialog
+            --test --pos=dialog --pos-serial=/your/serial/port 
             Then added a weighed item in the POS. Repeat three times
             It will perform three tests.
             Returning a weight of 500g , followed by two random weights.
