@@ -17,17 +17,20 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
-import swrapper
-
+import argparse
+import swrapper         # this programs module
+from swrapper import get_config
+from swrapper import pos_test_samsung, pos_test_dialog, scale_test_magellan
 # MAIN
 
 if __name__ == "__main__": 
+    
     #read command line arguments
     parser=argparse.ArgumentParser()
     parser.add_argument("--test", choices=['samsung', 'dialog', 'magellan'], help="Run specified test. See README.tests")
     parser.add_argument("-v", "--verbose", action="store_true", help="increase output verbosity")
-    parser.add_argument("--pos", help="specify the scale type used by the POS. Once of dialog or samsung")
-    parser.add_argument("--scale", help="specify scale that is connected. Possible values include dummy, MagellanSASI, PC-100 or a file containing a scale definition.")
+    parser.add_argument("--pos", help="specify the scale type used by the POS. Once of dialog or samsung. If not specified the program will attempt to use scale type defined in the config file.")
+    parser.add_argument("--scale", help="specify scale that is connected. Possible values include dummy, MagellanSASI, PC-100. If not specified the program will attempt to use a scale defined in the config file.")
     parser.add_argument("--pos-serial", help="specify the serial port the pos is connected to. e.g. /dev/pts/11")
     parser.add_argument("--scale-serial", help="specify the serial port the scale is connected to. e.g. /dev/ttyS3")
     args=parser.parse_args()
@@ -44,6 +47,34 @@ if __name__ == "__main__":
         sys.exit(0)
 
 
-    
+    # read config file
+    pos_config = get_config('pos')
+    scale_config = get_config('scale')
+    defined_scale = get_config('scale_definition')
+
+    if args.pos:
+        pos_scale = args.pos
+    elif pos_config['scale']:
+        pos_scale = pos_config['scale']
+    else:
+        pos_scale = 'samsung'
+
+    try:
+        if args.scale:
+            external_scale = args.scale
+        elif scale_config['type']:
+             external_scale = scale_config['type']
+    except:
+        print('No external scale defined')
+        raise NameError
+
+    try:
+        if args.scale-serial:
+            external_scale_serialport = args.scale-serial
+        elif scale_config['serialport']:
+            external_scale_serialport = scale_config['serialport']
+    except:
+        print('No serial port defined for external scale:' + external_scale)
+        raise NameError
 
 
