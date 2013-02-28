@@ -19,8 +19,11 @@
 
 
 import serial
-import argpass
+import argparse
 import random
+import ConfigParser
+import os
+import unittest
 
 # ignore this it's just leftover crud, for my reference
 # it's going to go away
@@ -50,7 +53,7 @@ class Scale():
     """has serial device, terminator byte,start byte, weight request,weight unit
     A serial device takes the following:
     Device (device) . e.g. /dev/ttyS3, /dev/pts/16
-    Speed (speed) in baud. Sefault is 9600
+    Speed (speed) in baud. Default is 9600
     Byte Size in bits (byte_size). 5,6,7,8 default is 8, 7 is also used in 
     scales and represents true ascii. 8 is the modern standard.
     Device Parity (dev_parity): Can be none, even,odd, mark or space. Typically
@@ -248,3 +251,42 @@ def scale_test_magellan(s_port):
     test_scale.run_echo_test()
     test_scale.run_confidence_test()
     print('end tests')
+
+def get_config(section):
+    config = ConfigParser.ConfigParser()
+    config.read([os.path.expanduser('~/.swrapper.cfg'),'/etc/swrapper.cfg','swrapper.cfg'])
+    if config.has_section('pos'):
+        pos_values=dict(config.items('pos'))
+    if config.has_section('scale'):
+        scales_values=dict(config.items('scale'))
+    if config.has_option('scale', 'type'):
+        defined_scale=config.get('scale', 'type')
+        if config.has_section(defined_scale):
+            scale_definition=dict(config.items(defined_scale))
+    if section == 'pos':
+        if pos_values:
+            return pos_values
+    elif section == 'scale':
+        if scales_values:
+            return scales_values
+    elif section == 'scale_definition':
+        if scale_definition:
+            return scale_definition
+
+# Unit Tests
+
+class MyUnitTest(unittest.TestCase):
+    def test_config_pos(self):
+        pos_config = get_config('pos')
+        self.assertEqual(pos_config['type'], 'samsung')
+
+    def test_config_scale(self):
+        scale_config = get_config('scale')
+        self.assertEqual(scale_config['type'], 'example')
+
+    def test_defined_scale(self):
+        defined_scale = get_config('scale_definition')
+        self.assertEqual(defined_scale['speed'], '9600')
+
+if __name__ == "__main__":
+    unittest.main()
