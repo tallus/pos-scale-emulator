@@ -148,6 +148,11 @@ class Scale():
             print 'expected ' + self.weight_request + '  got: ' + str(ord(receive))
             self.serial_port.close()
 
+    def read_signal(signal):
+        pass
+
+    def get_wieght(weight):
+        pass
 
 class Dialog(Scale):
     """extends Scale, corresponds to built in type Dialog1. This will be used to communicate with the POS. Weight Request 0x05 (ASCII STX: Start of TeXt). Weighs in grams.  """
@@ -164,7 +169,14 @@ class Dummy(Scale):
     """extends Scale, A dummy external scale for testing purposes. This will return a random weight between 0 & 25 kg (as kg), in 1g increments.. Weight Request $. Weighs in kilos."""
     def __init__(self, device = ''):
         Scale.__init__(self, device, 4800, '8', 'odd' ,'1', None,  'None', '\x0d', None, '$', 'k')
-
+    def read_signal(self,signal):
+        self.signal = signal
+        if self.signal == self.scale.weight_unit:
+            rand_weight = round(random.uniform(0,25),3)
+            print('returning weight: ' + rand_weight)
+            return rand_weight
+        else:
+            raise SignalException('did not get ' + self.signal + 'panic!')
 
 class MagellanSASI(Scale):
     """extends Scale. External scale using SASI-RS232 scale interface. Weighs in kilos or pounds. Weight Request W """
@@ -210,6 +222,9 @@ class MagellanSASI(Scale):
             if flag: 
                 print "something is wrong, the scale will not work until it is fixed"
         self.serial_port.close()
+
+class SignalException(Exception)
+    pass
 
 # FUNCTIONS
 
