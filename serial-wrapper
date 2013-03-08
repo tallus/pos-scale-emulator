@@ -18,9 +18,12 @@
 
 import sys
 import argparse
+import re
 import swrapper         # this programs module
 from swrapper import get_config
 from swrapper import pos_test_samsung, pos_test_dialog, scale_test_magellan
+
+
 # MAIN
 
 if __name__ == "__main__": 
@@ -38,11 +41,11 @@ if __name__ == "__main__":
     # run tests
     if args.test:
         if args.test == 'samsung':
-            pos_test_samsung(args.pos-serial)
+            pos_test_samsung(args.pos_serial)
         elif args.test == 'dialog':
-            pos_test_dialog(args.pos-serial)
+            pos_test_dialog(args.pos_serial)
         elif args.test == 'magellan':
-            scale_test_magellan(args.scale-serial)
+            scale_test_magellan(args.scale_serial)
         print('completed tests')
         sys.exit(0)
 
@@ -52,29 +55,78 @@ if __name__ == "__main__":
     scale_config = get_config('scale')
     defined_scale = get_config('scale_definition')
 
+    # load and check settings
+    # Note: command line options take precendence
     if args.pos:
         pos_scale = args.pos
-    elif pos_config['scale']:
-        pos_scale = pos_config['scale']
+    elif pos_config.has_key('type'):
+        pos_scale = pos_config['type']
     else:
-        pos_scale = 'samsung'
-
+        pos_scale = 'samsung'           # default to samsung if unspecified
+                                        # rather than raise error
     try:
-        if args.scale:
+        if args.scale is not None:
             external_scale = args.scale
-        elif scale_config['type']:
+        elif scale_config.has_key('type'):
              external_scale = scale_config['type']
-    except:
-        print('No external scale defined')
-        raise NameError
+        else:
+            raise Exception ('No external scale defined')
+    except Exception, err:
+        if err == 'No external scale defined':
+            sys.stderr.write('ERROR: %s\n' % str(err))
+            sys.exit(1)
+        else:
+            raise
+    
+    try:
+        if args.pos_serial is not None:
+            pos_scale_serialport = args.pos_serial
+        elif pos_config.has_key('serialport') :
+            pos_scale_serialport = pos_config['serialport']
+        else:
+            raise Exception("No serial port defined for pos: " + pos_scale)
+    except Exception, err:
+        if re.match(r'^No serial port defined',str(err)): 
+            sys.stderr.write('ERROR: %s\n' % str(err))
+            sys.exit(1)
+        else:
+            raise
 
     try:
-        if args.scale-serial:
-            external_scale_serialport = args.scale-serial
-        elif scale_config['serialport']:
+        if args.scale_serial is not None:
+            external_scale_serialport = args.scale_serial
+        elif scale_config.has_key('serialport'):
             external_scale_serialport = scale_config['serialport']
-    except:
-        print('No serial port defined for external scale:' + external_scale)
-        raise NameError
+        else:
+            raise Exception("No serial port defined for external scale: "  + external_scale)
+    except Exception, err:
+        if re.match(r'^No serial port defined',str(err)): 
+            sys.stderr.write('ERROR: %s\n' % str(err))
+            sys.exit(1)
+        else:
+            raise
+
+    # open serial devices
+    # POS
+    if pos_scale == 'samsung':
+        pos = Samsung(pos_scale_serialport)
+    elif pos_scale == 'dialog':
+        pos = Dialog(pos_scale_serialport)
+    pos.scale.serial_port.open()
+
+    # External Scale
+    if pos_scale == 'magellan':
+        external  = MagellanSASI(external_scale_serialport)
+    elif pos_scale == 'dummy':
+        external = Dummy(external_scale_serialport)
+    external.scale.serial_port.open()
+
+    
+    # main loop
+    while True:
+        signal = external.scale.serial_port.read[1]
+        weight = pos.read_signal(signal)
+        scale.get_weight(weight)
+
 
 
