@@ -125,12 +125,12 @@ class Scale():
         else:
             raise SignalException('expected: ' + self.weight_request + 'got: ' + str(ord(self.signal)))
     
-    def get_weight(self,signal):
-        self.signal = signal
-        read_weight = read_weight(self.signal)
-        # insert conversion here
-        weight = read_weight
-        return weight
+#    def get_weight(self,signal):
+#        self.signal = signal
+#        read_weight = read_weight(self.signal)
+#        # insert conversion here
+#        weight = read_weight
+#        return weight
 
     def pos_test(self,dummy_weight):
         '''Tests to ensure we can receive the correct command from the pos,
@@ -192,9 +192,8 @@ class Toledo(Scale):
     def __init__(self, device = '', speed = '',parity ='', weight_unit=''):
         Scale.__init__(self,device, speed, '7', parity, '1', None, 'None', '\x0d', '\x02', 'W', weight_unit)
 
-    def get_weight(self,signal):
-        self.signal = signal
-        read_weight = self.read_weight(self.signal)
+    def get_weight(self):
+        read_weight = self.read_weight(self.weight_request)
         # The scale always returns a seven byte array(inc start + stop char)
         # kilo returns two digits and three decimal places, 
         # pound mode returns tw and two and  prepends  zeros
@@ -208,8 +207,7 @@ class Toledo(Scale):
             weight = read_weight[:-3] + '.' +  read_weight[-3:]
         elif self.weight_unit == 'g':
             weight = read_weight
-            weight = read_weight
-        else:  
+        else: 
             raise SignalException('weight unit not defined')
         return weight
 
@@ -223,9 +221,8 @@ class AcomPC100(Scale):
     def __init__(self, device = '', weight_unit=''):
         Scale.__init__(self,device, 9600, '7', 'even', '1', None, 'None', '\x0d', '\x02', 'W', weight_unit)
 
-    def get_weight(self,signal):
-        self.signal = signal
-        read_weight = self.read_weight(self.signal)
+    def get_weight(self):
+        read_weight = self.read_weight(self.weight_request)
         # The scale always returns a seven byte array(inc start + stop char)
         # kilo returns two digits and three decimal places, 
         # pound mode returns tw and two and  prepends  zeros
@@ -248,20 +245,15 @@ class SASI(Scale):
     def __init__(self, device = '', speed = '',parity ='', weight_unit=''):
         Scale.__init__(self,device, speed, '7', parity, '1', None, 'None', '\x0d', '\x02', 'W', weight_unit)
 
-    def get_weight(self,signal):
-        self.signal = signal
-        read_weight = self.read_weight(self.signal)
-        # SASI always returns a seven byte array(inc start + stop char)
+ def get_weight(self):
+        read_weight = self.read_weight(self.weight_request)
+        # The Magellan always returns a seven byte array(inc start + stop char)
         # kilo returns two digits and three decimal places, 
         # pound mode returns two and two and  appends a zero
-        # if we want to weigh in pounds we may have to reverse this
-        # since the samsung  expects three decimal points
-        # i.e. remove prepending,pad with trailing zero
+        # Note the magellan only works with samsung
+        # which seems quite fault tolerant as regards format 
         # the pos itself is agnostic about weight units though designed for k
-        if self.weight_unit == 'lb':
-            weight = read_weight[1:]
-            weight += '0'
-        elif  self.weight_unit == 'k':
+        if self.weight_unit in [ 'lb', 'k' ]:
             weight = read_weight
         elif self.weight_unit == 'g':
             raise SignalException('scale does not weigh in grammes')
@@ -275,20 +267,15 @@ class MagellanSASI(Scale):
     def __init__(self, device = '', weight_unit=''):
         Scale.__init__(self,device, 9600, '7', 'even', '1', None, 'None', '\x0d', '\x02', 'W', weight_unit)
 
-    def get_weight(self,signal):
-        self.signal = signal
-        read_weight = self.read_weight(self.signal)
+    def get_weight(self):
+        read_weight = self.read_weight(self.weight_request)
         # The Magellan always returns a seven byte array(inc start + stop char)
         # kilo returns two digits and three decimal places, 
         # pound mode returns two and two and  appends a zero
-        # if we want to weigh in pounds we may have to reverse this
-        # since the samsung  expects three decimal points
-        # i.e. remove prepending,pad with trailing zero
+        # Note the magellan only works with samsung
+        # which seems quite fault tolerant as regards format 
         # the pos itself is agnostic about weight units though designed for k
-        if self.weight_unit == 'lb':
-            weight = read_weight[1:]
-            weight += '0'
-        elif  self.weight_unit == 'k':
+        if self.weight_unit in [ 'lb', 'k' ]:
             weight = read_weight
         elif self.weight_unit == 'g':
             raise SignalException('scale does not weigh in grammes')
@@ -354,11 +341,14 @@ def pos_test_samsung(s_port):
     print('start test3')
     opos_scale.pos_test('012.34')   # pounds
     print('end test3')
+    print('start test4')
+    opos_scale.pos_test('56.78')   # pounds
+    print('end test4')
     # generate random float between 0 & 10 and round to 3 decimal places
     rand_weight=round(random.uniform(0,10),3)
-    print('start test4')
+    print('start test5')
     opos_scale.pos_test(str(rand_weight))
-    print('end test4')
+    print('end test5')
 
 def pos_test_dialog(s_port):
     print('starting tests')
