@@ -17,34 +17,12 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-
 import serial
 import argparse
 import random
 import ConfigParser
 import os
 import unittest
-
-# ignore this it's just leftover crud, for my reference
-# it's going to go away
-#def serial_test(device, time_out, bytes_read, flowcontrol = 'none'):
-    #"""listens to serial port [device] and prints out N [bytes_read] with timeout [time_out]"""
-    #try:
-        #ser = serial.Serial(device, 4800, parity=serial.PARITY_ODD, bytesize=serial.EIGHTBITS, stopbits=serial.STOPBITS_ONE, timeout=time_out)
-        #if flowcontrol == 'software':
-            #ser.xonxoff = 1
-        #elif  flowcontrol == 'hardware':
-            #ser.rtscts = 1
-        #buffer_input = ser.read(bytes_read)
-        #ser.close()
-        #print 'received:' + buffer_input
-        #if len(buffer_input) == 0:
-            #print 'there was no input'
-        #else:
-            #print 'Input was:' + buffer_input
-    #except serial.SerialException:
-        #print 'could not open serial device'
-        #pass
 
 
 # CLASS DEFINITIONS
@@ -120,12 +98,39 @@ class Scale():
         Note this does not attempt to check the weight value is 
         correctly formatted. This should be implented in a wrapper
         function in the relevant class'''
-        # none of the defined printers in the pos use a start_byte AFAIK
+        # none of the defined scales in the pos use a start_byte AFAIK
         if self.start_byte:
             send_string = self.start_byte + weight + self.terminator_byte
         else:
             send_string = weight + self.terminator_byte
         self.serial_port.write(send_string)
+
+    def read_weight(self,signal):
+        self.signal = signal
+        if self.signal == self.weight_request:
+            self.time_out = 10
+            self.serial_port.write(self.signal)
+            read_weight=bytearray()
+            while True:
+                read_byte = self.serial_port.read(1)
+                if read_byte == self.terminator_byte:
+                    break
+                else:
+                    read_weight.append(read_byte)
+            if self.start_byte:
+                weight = str(ord(read_weight[1:]))
+            else:
+                weight = str(ord(read_weight))               
+            return  weight
+        else:
+            raise SignalException('expected: ' + self.weight_request + 'got: ' + str(ord(self.signal)))
+    
+    def get_weight(self,signal):
+        self.signal = signal
+        read_weight = read_weight(self.signal)
+        # insert conversion here
+        weight = read_weight
+        return weight
 
     def pos_test(self,dummy_weight):
         '''Tests to ensure we can receive the correct command from the pos,
@@ -148,11 +153,7 @@ class Scale():
             print 'expected ' + self.weight_request + '  got: ' + str(ord(receive))
             self.serial_port.close()
 
-    def read_signal(signal):
-        pass
 
-    def get_wieght(weight):
-        pass
 
 class Dialog(Scale):
     """extends Scale, corresponds to built in type Dialog1. This will be used to communicate with the POS. Weight Request 0x05 (ASCII STX: Start of TeXt). Weighs in grams.  """
@@ -165,23 +166,135 @@ class Samsung(Scale):
     def __init__(self, device = ''):
         Scale.__init__(self, device, 4800, '8', 'odd' ,'1', None,  'None', '\x0d', None, '$', 'k')
 
+
 class Dummy(Scale):
     """extends Scale, A dummy external scale for testing purposes. This will return a random weight between 0 & 25 kg (as kg), in 1g increments.. Weight Request $. Weighs in kilos."""
-    def __init__(self, device = ''):
-        Scale.__init__(self, device, 4800, '8', 'odd' ,'1', None,  'None', '\x0d', None, '$', 'k')
-    def read_signal(self,signal):
-        self.signal = signal
-        if self.signal == self.scale.weight_unit:
+    def __init__(self, device = '', weight_unit='k'):
+        #Scale.__init__(self, device, 4800, '8', 'odd' ,'1', None,  'None', '\x0d', None, '$', weight_unit)
+        self.weight_unit = weight_unit
+    def get_weight(self):
+        if self.weight_unit == 'k':
             rand_weight = round(random.uniform(0,25),3)
-            print('returning weight: ' + rand_weight)
-            return rand_weight
+        if self.weight_unit == 'lb':
+            rand_weight = str(round(random.uniform(0,25),2)) + '0'
         else:
-            raise SignalException('did not get ' + self.signal + 'panic!')
+            raise SignalException('weight unit not defined' )
+        print('returning weight: ' + rand_weight)
+        return rand_weight
+
+
+class Toledo(Scale):
+    """extends Scale. External scale using Toledo (8213) scale interface.
+    Weighs in kilos (grammes) or pounds. Weight Request W 
+    Returns: <STX> X1X2X3X4X5 <CR> where X1 to X5 are digits representing
+    weight. No decimal point is used so it is sensible to regard kilo as 
+    returning grammes."""
+    def __init__(self, device = '', speed = '',parity ='', weight_unit=''):
+        Scale.__init__(self,device, speed, '7', parity, '1', None, 'None', '\x0d', '\x02', 'W', weight_unit)
+
+    def get_weight(self,signal):
+        self.signal = signal
+        read_weight = self.read_weight(self.signal)
+        # The scale always returns a seven byte array(inc start + stop char)
+        # kilo returns two digits and three decimal places, 
+        # pound mode returns tw and two and  prepends  zeros
+        # if we want to weigh in pounds we may have to reverse this
+        # since the samsung  expects three decimal points
+        # i.e. remove prepending,pad with trailing zero
+        # the pos itself is agnostic about weight units though designed for k
+        if self.weight_unit == 'lb':
+            weight = read_weight[:-2] + '.' +  read_weight[-2:]
+        elif self.weight_unit == 'k':
+            weight = read_weight[:-3] + '.' +  read_weight[-3:]
+        elif self.weight_unit == 'g':
+            weight = read_weight
+            weight = read_weight
+        else:  
+            raise SignalException('weight unit not defined')
+        return weight
+
+
+class AcomPC100(Scale):
+    """External scale using Toledo scale interface. Weighs in kilos(grammes) 
+    or pounds.Weight Request W. 
+    Returns: <STX> X1X2X3X4X5 <CR> where X1 to X5 are digits representing
+    weight. No decimal point is used so it is sensible to regard kilo as 
+    returning grammes."""
+    def __init__(self, device = '', weight_unit=''):
+        Scale.__init__(self,device, 9600, '7', 'even', '1', None, 'None', '\x0d', '\x02', 'W', weight_unit)
+
+    def get_weight(self,signal):
+        self.signal = signal
+        read_weight = self.read_weight(self.signal)
+        # The scale always returns a seven byte array(inc start + stop char)
+        # kilo returns two digits and three decimal places, 
+        # pound mode returns tw and two and  prepends  zeros
+        # if we want to weigh in pounds we may have to reverse this
+        # since the samsung  expects three decimal points
+        # i.e. remove prepending,pad with trailing zero
+        # the pos itself is agnostic about weight units though designed for k
+        if self.weight_unit == 'lb':
+            weight = read_weight[:-2] + '.' +  read_weight[-2:]
+        elif self.weight_unit == 'k':
+            weight = read_weight[:-3] + '.' +  read_weight[-3:]
+        elif self.weight_unit == 'g':
+            weight = read_weight
+        else: 
+            raise SignalException('weight unit not defined')
+        return weight
+
+class SASI(Scale):
+    """extends Scale. External scale using SASI-RS232 scale interface. Weighs in kilos or pounds. Weight Request W """
+    def __init__(self, device = '', speed = '',parity ='', weight_unit=''):
+        Scale.__init__(self,device, speed, '7', parity, '1', None, 'None', '\x0d', '\x02', 'W', weight_unit)
+
+    def get_weight(self,signal):
+        self.signal = signal
+        read_weight = self.read_weight(self.signal)
+        # SASI always returns a seven byte array(inc start + stop char)
+        # kilo returns two digits and three decimal places, 
+        # pound mode returns two and two and  appends a zero
+        # if we want to weigh in pounds we may have to reverse this
+        # since the samsung  expects three decimal points
+        # i.e. remove prepending,pad with trailing zero
+        # the pos itself is agnostic about weight units though designed for k
+        if self.weight_unit == 'lb':
+            weight = read_weight[1:]
+            weight += '0'
+        elif  self.weight_unit == 'k':
+            weight = read_weight
+        elif self.weight_unit == 'g':
+            raise SignalException('scale does not weigh in grammes')
+        else : 
+            raise SignalException('weight unit not defined')
+        return weight
+
 
 class MagellanSASI(Scale):
     """extends Scale. External scale using SASI-RS232 scale interface. Weighs in kilos or pounds. Weight Request W """
     def __init__(self, device = '', weight_unit=''):
         Scale.__init__(self,device, 9600, '7', 'even', '1', None, 'None', '\x0d', '\x02', 'W', weight_unit)
+
+    def get_weight(self,signal):
+        self.signal = signal
+        read_weight = self.read_weight(self.signal)
+        # The Magellan always returns a seven byte array(inc start + stop char)
+        # kilo returns two digits and three decimal places, 
+        # pound mode returns two and two and  appends a zero
+        # if we want to weigh in pounds we may have to reverse this
+        # since the samsung  expects three decimal points
+        # i.e. remove prepending,pad with trailing zero
+        # the pos itself is agnostic about weight units though designed for k
+        if self.weight_unit == 'lb':
+            weight = read_weight[1:]
+            weight += '0'
+        elif  self.weight_unit == 'k':
+            weight = read_weight
+        elif self.weight_unit == 'g':
+            raise SignalException('scale does not weigh in grammes')
+        else : 
+            raise SignalException('weight unit not defined')
+        return weight
 
     def run_echo_test(self):
         self.serial_port.timeout = 10
@@ -223,7 +336,7 @@ class MagellanSASI(Scale):
                 print "something is wrong, the scale will not work until it is fixed"
         self.serial_port.close()
 
-class SignalException(Exception)
+class SignalException(Exception):
     pass
 
 # FUNCTIONS
@@ -238,11 +351,14 @@ def pos_test_samsung(s_port):
     print('start test2')
     opos_scale.pos_test('5.652')
     print('end test2')
+    print('start test3')
+    opos_scale.pos_test('012.34')   # pounds
+    print('end test3')
     # generate random float between 0 & 10 and round to 3 decimal places
     rand_weight=round(random.uniform(0,10),3)
-    print('start test3')
+    print('start test4')
     opos_scale.pos_test(str(rand_weight))
-    print('end test3')
+    print('end test4')
 
 def pos_test_dialog(s_port):
     print('starting tests')
@@ -251,8 +367,8 @@ def pos_test_dialog(s_port):
     print('start test1')
     opos_scale.pos_test('500')
     print('end test1')
-    # generate random float between 0 & 10 and round to 3 decimal places
-    rand_weight=round(random.uniform(0,10),3)
+    # generate random float between 0 & 10000, rounded to whole units
+    rand_weight=round(random.uniform(0,10000))
     print('start test2')
     print('end test2')
     opos_scale.pos_test(str(rand_weight))
