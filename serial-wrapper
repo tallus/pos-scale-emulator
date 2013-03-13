@@ -36,6 +36,7 @@ if __name__ == "__main__":
     parser.add_argument("--scale", help="specify scale that is connected. Possible values include dummy, MagellanSASI, PC-100. If not specified the program will attempt to use a scale defined in the config file.")
     parser.add_argument("--pos-serial", help="specify the serial port the pos is connected to. e.g. /dev/pts/11")
     parser.add_argument("--scale-serial", help="specify the serial port the scale is connected to. e.g. /dev/ttyS3")
+    parser.add_argument("--weight-unit", help="weight units used by external scales. One of k, g, or lb. For kilos, grammes or pounds")
     args=parser.parse_args()
 
     # run tests
@@ -81,7 +82,7 @@ if __name__ == "__main__":
     try:
         if args.pos_serial is not None:
             pos_scale_serialport = args.pos_serial
-        elif pos_config.has_key('serialport') :
+        elif pos_config.has_key('serialport'):
             pos_scale_serialport = pos_config['serialport']
         else:
             raise Exception("No serial port defined for pos: " + pos_scale)
@@ -106,6 +107,14 @@ if __name__ == "__main__":
         else:
             raise
 
+    if args.weight_unit:
+        weight_unit = args.weight_unit
+    elif scale_config.has_key('weight-unit'):
+        weight_unit = scale_config['weight-unit']
+    else: 
+        weight_unit = 'k'
+
+
     # open serial devices
     # POS
     if pos_scale == 'samsung':
@@ -116,12 +125,21 @@ if __name__ == "__main__":
 
     # External Scale
     if external_scale == 'magellan':
-        external  = MagellanSASI(external_scale_serialport)
+        external  = MagellanSASI(external_scale_serialport, weight_unit)
+    elif external_scale == 'pc-100':
+        external  = AcomPC100(external_scale_serialport, weight_unit)
     elif external_scale == 'dummy':
-        external = Dummy(external_scale_serialport)
+        external = Dummy(external_scale_serialport, weight_unit)
+    elif scale_config.has_key('interface'):
+        if scale_config['interface'] == 'toledo':
+            external = Toledo(external_scale_serialport, scale_config['speed'], scale_config['parity'],weight_unit)
+        elif scale_config['interface'] == 'sasi':
+        external = SASI(external_scale_serialport, scale_config['speed'], scale_config['parity'],weight_unit)
+    else:
+        raise SignalError('External Scale not defined')
     external.scale.serial_port.open()
 
-    
+
     # main loop
     while True:
         signal = pos.scale.serial_port.read[1]
