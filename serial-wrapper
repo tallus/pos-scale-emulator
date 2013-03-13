@@ -115,18 +115,18 @@ if __name__ == "__main__":
     pos.scale.serial_port.open()
 
     # External Scale
-    if pos_scale == 'magellan':
+    if external_scale == 'magellan':
         external  = MagellanSASI(external_scale_serialport)
-    elif pos_scale == 'dummy':
+    elif external_scale == 'dummy':
         external = Dummy(external_scale_serialport)
     external.scale.serial_port.open()
 
     
     # main loop
     while True:
-        signal = external.scale.serial_port.read[1]
-        weight = pos.read_signal(signal)
-        scale.get_weight(weight)
+        signal = pos.scale.serial_port.read[1]
+        weight = external.get_weight(signal)
+        pos.send_weight(weight)
 
 
 
