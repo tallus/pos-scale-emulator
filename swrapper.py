@@ -358,8 +358,7 @@ class MagellanSASI(Scale):
         self.serial_port.close()
 
 class SignalException(Exception):
-    '''used to throw exceptions and print user readable error messages 
-    without printing out traceback'''
+    '''used to throw exceptions with user readable error messages'''
     pass
 
 # FUNCTIONS
