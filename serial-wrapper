@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+''' This program acts as a middle layer between the Unicenta/Open Bravo etc POS
+and unsupported external scales, translating from a defined external scale 
+to the scale types supported by the POS. 
+It needs to be run in conjunction with a program like socat to provide the 
+serial ports. See README for more details.'''
 
 
 #    Copyright Paul Munday 2013
@@ -18,26 +23,62 @@
 
 import sys
 import argparse
-import re
 import swrapper         # this programs module
-from swrapper import get_config
+from swrapper import get_config, SignalException
 from swrapper import pos_test_samsung, pos_test_dialog, scale_test_magellan
 
+# FUNCTIONS
+
+def get_args():
+    '''read command line arguments'''
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--test", choices=['samsung', 'dialog', 'magellan'], 
+            help="Run specified test. See README.tests")
+    parser.add_argument("-v", "--verbose", action="store_true", 
+            help="increase output verbosity")
+    parser.add_argument("--pos", 
+            help="specify the scale type used by the POS. One of dialog or samsung. If not specified the program will attempt to use scale type defined in the config file.")
+    parser.add_argument("--scale", 
+            help="specify scale that is connected. Possible values include dummy, MagellanSASI, PC-100. If not specified the program will attempt to use a scale defined in the config file.")
+    parser.add_argument("--pos-serial", 
+            help="specify the serial port the pos is connected to. e.g. /dev/pts/11")
+    parser.add_argument("--scale-serial", 
+            help="specify the serial port the scale is connected to. e.g. /dev/ttyS3")
+    parser.add_argument("--weight-unit", 
+            help="weight units used by external scales. One of k, g, or lb. For kilos, grammes or pounds")
+    return parser.parse_args()
+
+def get_signal():
+    '''read a byte from the POS and return true if its trying to read weight.
+    N.B. We are relying on this just waiting indefinately
+    until something is written to the serial port''' 
+    signal = pos.scale.serial_port.read[1]
+    if POS_SCALE == 'samsung':
+        if signal == '$':
+            return True
+        else:
+            raise SignalException('Did not receive correct signal from POS')
+    elif POS_SCALE == 'dialog':
+        if signal == '\x05':
+            return True
+        else:
+            raise SignalException('Did not receive correct signal from POS')
+
+def read_scale_weight():
+    '''Prompt the external scale to weigh something and return the weight.
+    This doesn't check for something other than weight but it should'''
+    weight = external.get_weight()
+    # put check in here (should return either 5 digits, or 5 digits with a .
+    # depending on pos type. Need to figure out how to enforce correct
+    # weight unit POS match in a more robust way.
+    return weight
 
 # MAIN
 
 if __name__ == "__main__": 
-    
-    #read command line arguments
-    parser=argparse.ArgumentParser()
-    parser.add_argument("--test", choices=['samsung', 'dialog', 'magellan'], help="Run specified test. See README.tests")
-    parser.add_argument("-v", "--verbose", action="store_true", help="increase output verbosity")
-    parser.add_argument("--pos", help="specify the scale type used by the POS. Once of dialog or samsung. If not specified the program will attempt to use scale type defined in the config file.")
-    parser.add_argument("--scale", help="specify scale that is connected. Possible values include dummy, MagellanSASI, PC-100. If not specified the program will attempt to use a scale defined in the config file.")
-    parser.add_argument("--pos-serial", help="specify the serial port the pos is connected to. e.g. /dev/pts/11")
-    parser.add_argument("--scale-serial", help="specify the serial port the scale is connected to. e.g. /dev/ttyS3")
-    parser.add_argument("--weight-unit", help="weight units used by external scales. One of k, g, or lb. For kilos, grammes or pounds")
-    args=parser.parse_args()
+   
+    # read command line args
+    args = get_args()
 
     # run tests
     if args.test:
@@ -54,94 +95,92 @@ if __name__ == "__main__":
     # read config file
     pos_config = get_config('pos')
     scale_config = get_config('scale')
-    defined_scale = get_config('scale_definition')
+    if scale_config:
+        defined_scale = get_config('scale_definition')
 
     # load and check settings
     # Note: command line options take precendence
     if args.pos:
-        pos_scale = args.pos
+        POS_SCALE = args.pos
     elif pos_config.has_key('type'):
-        pos_scale = pos_config['type']
+        POS_SCALE = pos_config['type']
     else:
-        pos_scale = 'samsung'           # default to samsung if unspecified
+        POS_SCALE = 'samsung'           # default to samsung if unspecified
                                         # rather than raise error
     try:
         if args.scale is not None:
-            external_scale = args.scale
-        elif scale_config.has_key('type'):
-             external_scale = scale_config['type']
+            EXTERNAL_SCALE = args.scale
+        elif scale_config:
+            if scale_config.has_key('type'):
+                EXTERNAL_SCALE = scale_config['type']
         else:
-            raise Exception ('No external scale defined')
-    except Exception, err:
-        if err == 'No external scale defined':
-            sys.stderr.write('ERROR: %s\n' % str(err))
-            sys.exit(1)
-        else:
-            raise
+            raise SignalException ('No external scale defined')
+    except SignalException, err:
+        sys.stderr.write('ERROR: %s\n' % str(err))
+        sys.exit(1)
     
     try:
         if args.pos_serial is not None:
-            pos_scale_serialport = args.pos_serial
-        elif pos_config.has_key('serialport'):
-            pos_scale_serialport = pos_config['serialport']
+            POS_SCALE_SERIALPORT = args.pos_serial
+        elif pos_config:
+            if pos_config.has_key('serialport'):
+                POS_SCALE_SERIALPORT = pos_config['serialport']
         else:
-            raise Exception("No serial port defined for pos: " + pos_scale)
-    except Exception, err:
-        if re.match(r'^No serial port defined',str(err)): 
-            sys.stderr.write('ERROR: %s\n' % str(err))
-            sys.exit(1)
-        else:
-            raise
+            raise SignalException("No serial port defined for pos: " 
+                    + POS_SCALE)
+    except SignalException, err:
+        sys.stderr.write('ERROR: %s\n' % str(err))
+        sys.exit(1)
 
     try:
         if args.scale_serial is not None:
-            external_scale_serialport = args.scale_serial
+            EXTERNAL_SCALE_SERIALPORT = args.scale_serial
         elif scale_config.has_key('serialport'):
-            external_scale_serialport = scale_config['serialport']
+            EXTERNAL_SCALE_SERIALPORT = scale_config['serialport']
         else:
-            raise Exception("No serial port defined for external scale: "  + external_scale)
-    except Exception, err:
-        if re.match(r'^No serial port defined',str(err)): 
-            sys.stderr.write('ERROR: %s\n' % str(err))
-            sys.exit(1)
-        else:
-            raise
+            raise SignalException("No serial port defined for external scale: "
+                    + EXTERNAL_SCALE)
+    except SignalException, err:
+        sys.stderr.write('ERROR: %s\n' % str(err))
+        sys.exit(1)
 
-    if args.weight_unit:
-        weight_unit = args.weight_unit
+    if args.WEIGHT_UNIT:
+        WEIGHT_UNIT = args.WEIGHT_UNIT
     elif scale_config.has_key('weight-unit'):
-        weight_unit = scale_config['weight-unit']
+        WEIGHT_UNIT = scale_config['weight-unit']
     else: 
-        weight_unit = 'k'
+        WEIGHT_UNIT = 'k'
 
     # open serial devices
     # POS
-    if pos_scale == 'samsung':
-        pos = Samsung(pos_scale_serialport)
-    elif pos_scale == 'dialog':
-        pos = Dialog(pos_scale_serialport)
+    if POS_SCALE == 'samsung':
+        pos = swrapper.Samsung(POS_SCALE_SERIALPORT)
+    elif POS_SCALE == 'dialog':
+        pos = swrapper.Dialog(POS_SCALE_SERIALPORT)
     pos.scale.serial_port.open()
 
     # External Scale
-    if external_scale == 'magellan':
-        if pos_scale != 'samsung':
+    if EXTERNAL_SCALE == 'magellan':
+        if POS_SCALE != 'samsung':
             raise SignalException('POS scale must be set to Samsung')
-        elif weight_unit == 'g':
+        elif WEIGHT_UNIT == 'g':
             raise SignalException('Scale can not take g as weight unit')
-        external  = MagellanSASI(external_scale_serialport, weight_unit)
-    elif external_scale == 'pc-100':
-        external  = AcomPC100(external_scale_serialport, weight_unit)
-    elif external_scale == 'dummy':
-        external = Dummy(external_scale_serialport, weight_unit)
+        external = swrapper.MagellanSASI(EXTERNAL_SCALE_SERIALPORT, WEIGHT_UNIT)
+    elif EXTERNAL_SCALE == 'pc-100':
+        external = swrapper.AcomPC100(EXTERNAL_SCALE_SERIALPORT, WEIGHT_UNIT)
+    elif EXTERNAL_SCALE == 'dummy':
+        external = swrapper.Dummy(EXTERNAL_SCALE_SERIALPORT, WEIGHT_UNIT)
     elif scale_config.has_key('interface'):
         if scale_config['interface'] == 'toledo':
-            if pos_scale != 'samsung':
+            if POS_SCALE != 'samsung':
                 raise SignalException('POS scale must be set to Samsung')
-             elif weight_unit == 'g':
+            elif WEIGHT_UNIT == 'g':
                 raise SignalException('Scale can not take g as weight unit')
-            external = Toledo(external_scale_serialport, scale_config['speed'], scale_config['parity'],weight_unit)
+            external = swrapper.Toledo(EXTERNAL_SCALE_SERIALPORT, 
+                    scale_config['speed'], scale_config['parity'],WEIGHT_UNIT)
         elif scale_config['interface'] == 'sasi':
-            external = SASI(external_scale_serialport, scale_config['speed'], scale_config['parity'], weight_unit)
+            external = swrapper.SASI(EXTERNAL_SCALE_SERIALPORT, 
+                    scale_config['speed'], scale_config['parity'], WEIGHT_UNIT)
     else:
         raise SignalException('External Scale not defined')
     external.scale.serial_port.open()
@@ -149,10 +188,10 @@ if __name__ == "__main__":
 
     # main loop
     while True:
-        signal = pos.scale.serial_port.read[1]
-        # should really check we got correct signal from pos here
-        weight = external.get_weight()
-        pos.send_weight(weight)
+        signal = get_signal()
+        if signal:
+            weight = read_scale_weight()
+            pos.send_weight(weight)
         # flush serial port(s) here?
 
 
