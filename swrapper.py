@@ -73,8 +73,16 @@ class Scale():
         self.weight_unit = weight_unit
         #    define some dictionaries to address serial constants
         d_bytesize = { '5' : serial.FIVEBITS, 'five' : serial.FIVEBITS,  '6' : serial.SIXBITS,  'six' : serial.SIXBITS, '7' : serial.SEVENBITS, 'seven' : serial.SEVENBITS, '8' : serial.EIGHTBITS, 'eight' : serial.EIGHTBITS}
-        d_parity = { 'none' : serial.PARITY_NONE, 'odd' : serial.PARITY_ODD , 'even' : serial.PARITY_EVEN, 'mark' : serial.PARITY_MARK, 'space' : serial.PARITY_SPACE }            
-        d_stopbits = { '1' : serial.STOPBITS_ONE, 'one' : serial.STOPBITS_ONE, '2' : serial.STOPBITS_TWO, 'two' : serial.STOPBITS_TWO, '1.5' : serial.STOPBITS_ONE_POINT_FIVE, 'one_point_five' : serial.STOPBITS_ONE_POINT_FIVE }
+        # versions of python < 2.7.(3) e.g.2.6.5 in Ubuntu 10.04 doen't have 
+        # some of the more obscure options defined
+        if sys.version_info>(2,7,3):
+            d_parity = { 'none' : serial.PARITY_NONE, 'odd' : serial.PARITY_ODD , 'even' : serial.PARITY_EVEN, 'mark' : serial.PARITY_MARK, 'space' : serial.PARITY_SPACE }            
+        else: 
+            d_parity = { 'none' : serial.PARITY_NONE, 'odd' : serial.PARITY_ODD , 'even' : serial.PARITY_EVEN}
+        if sys.version_info>(2,7,3):
+            d_stopbits = { '1' : serial.STOPBITS_ONE, 'one' : serial.STOPBITS_ONE, '2' : serial.STOPBITS_TWO, 'two' : serial.STOPBITS_TWO, '1.5' : serial.STOPBITS_ONE_POINT_FIVE, 'one_point_five' : serial.STOPBITS_ONE_POINT_FIVE }
+        else:
+            d_stopbits = { '1' : serial.STOPBITS_ONE, 'one' : serial.STOPBITS_ONE, '2' : serial.STOPBITS_TWO, 'two' : serial.STOPBITS_TWO}
         # set the values we use to initialize the serial port
         self.port = device
         b_size = str(byte_size)
@@ -316,19 +324,23 @@ class MagellanSASI(Scale):
         In this mode the scale will echo whatever is sent to the serial port'''
         self.serial_port.timeout = 10
         self.serial_port.open()
-        print 'Beginning echo test...'
+        print('Beginning echo test...')
         self.serial_port.write("E")                          # enter echo mode
-        start_echo = self.serial_port.read(8)                # should be E
-        print start_echo
+        start_echo = self.serial_port.read(3)                # should be E
+        print ('Read three characters')
+        print ('received: ' + start_echo)
         self.serial_port.write("A")
-        echo_test1 = self.serial_port.read(4)
-        print echo_test1
-        self.serial_port.write("Hello World!")
-        echo_test2 = self.serial_port.read(16) 
-        print echo_test2
-        self.serial_port.write("F")                          # exit echo mode
-        end_echo = self.serial_port.read(8)
-        print end_echo
+        echo_test1 = self.serial_port.read(1)
+        print('wrote A, read one byte')
+        print('receved: ' + echo_test1)
+        self.serial_port.write("Hello World")
+        echo_test2 = self.serial_port.read(11)
+        print('wrote Hello World, read 11 characters')
+        print('received: ' + echo_test2)
+        self.serial_port.write("F")                   # exit echo mode
+        end_echo = self.serial_port.read(3)
+        print('wrote F (exit echo mode)')
+        print('received: ' +  end_echo)
         self.serial_port.close()
 
     def run_confidence_test(self):
@@ -341,20 +353,29 @@ class MagellanSASI(Scale):
         self.serial_port.read(2)                    # read and discard two bytes
         self.serial_port.write("B")                 # get results
         # results: STX,?,confidence status byte,CR
-        confidence_results = self.serial_port.read(4)   
-        confidence_status = bin(ord(confidence_results[3]))
-        print('confidence results: ' + confidence_results 
-                + ' confidence status: ' + confidence_status)
-        results_list = ['eeprom 1', 'eeprom 2', 'ram', 'processor ram', 'rom', 'not used', 'confidence test complete' ,'parity bit']                     # 1 = pass, 0 = fail
-        for i in range(0, 4):
-            if confidence_status[i] == 1:
-                print results_list[i] + " test  passed"
-            elif confidence_status[i] == 0:
-                print results_list[i] + " test  failed"
-                flag = 0
+        confidence_results = self.serial_port.read(4)
+        if len(confidence_results) == 4:
+            confidence_status = bin(ord(confidence_results[3]))
+            print('confidence results: ' + confidence_results 
+                    + ' confidence status: ' + confidence_status)
+        else:
+            print('confidence results: ' + confidence_results)
+            flag = 1
+        if confidence_status:
+            results_list = ['eeprom 1', 'eeprom 2', 'ram', 'processor ram', 'rom', 'not used', 'confidence test complete' ,'parity bit']                     # 1 = pass, 0 = fail
+            for i in range(0, 4):
+                if confidence_status[i] == 1:
+                    print results_list[i] + " test  passed"
+                elif confidence_status[i] == 0:
+                    print results_list[i] + " test  failed"
+                    flag = 0
 
             if flag: 
                 print('something is wrong, the scale will not work until it is fixed')
+                if flag == 0:
+                    print('test failed')
+                elif flag == 1:
+                    print('could not get confidence status')
         self.serial_port.close()
 
 class SignalException(Exception):
